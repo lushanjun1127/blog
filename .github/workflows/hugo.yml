@@ -1,53 +1,110 @@
-# Sample workflow for building and deploying a Hugo site to GitHub Pages
+# Hugo 站点构建与部署
+#
+# 流水线结构：
+#   quality  —— 质量门禁（Markdown 规范检查、Hugo 构建校验），不通过则阻断部署
+#   build    —— 构建站点产物
+#   deploy   —— 发布到 GitHub Pages
 name: Deploy Hugo site to Pages
 
 on:
-  # Runs on pushes targeting the default branch
   push:
     branches: ["main"]
-
-  # Allows you to run this workflow manually from the Actions tab
+  pull_request:
+    branches: ["main"]
   workflow_dispatch:
 
-# Sets permissions of the GITHUB_TOKEN to allow deployment to GitHub Pages
 permissions:
   contents: read
   pages: write
   id-token: write
 
-# Allow only one concurrent deployment, skipping runs queued between the run in-progress and latest queued.
-# However, do NOT cancel in-progress runs as we want to allow these production deployments to complete.
 concurrency:
   group: "pages"
   cancel-in-progress: false
 
-# Default to bash
 defaults:
   run:
     shell: bash
 
+env:
+  HUGO_VERSION: 0.168.0
+
 jobs:
-  # Build job
-  build:
+  # ── 质量门禁：不通过则后续 job 不会执行 ──────────────────────────
+  quality:
+    name: Quality gate
     runs-on: ubuntu-latest
-    env:
-      HUGO_VERSION: 0.168.0
     steps:
-      - name: Install Hugo CLI
-        run: |
-          wget -O ${{ runner.temp }}/hugo.deb https://github.com/gohugoio/hugo/releases/download/v${HUGO_VERSION}/hugo_extended_${HUGO_VERSION}_linux-amd64.deb \
-          && sudo dpkg -i ${{ runner.temp }}/hugo.deb
-      - name: Install Dart Sass
-        run: sudo snap install dart-sass
       - name: Checkout
         uses: actions/checkout@v4
         with:
           submodules: recursive
+
+      - name: Markdown lint
+        uses: DavidAnson/markdownlint-cli2-action@v18
+        with:
+          globs: |
+            content/**/*.md
+            README.md
+            CONTRIBUTING.md
+
+      - name: Install Hugo CLI
+        run: |
+          wget -O ${{ runner.temp }}/hugo.deb \
+            https://github.com/gohugoio/hugo/releases/download/v${HUGO_VERSION}/hugo_extended_${HUGO_VERSION}_linux-amd64.deb \
+          && sudo dpkg -i ${{ runner.temp }}/hugo.deb
+
+      - name: Cache Hugo resources
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/hugo_cache
+          key: hugo-${{ runner.os }}-${{ env.HUGO_VERSION }}-${{ hashFiles('hugo.toml', 'config/**', 'data/**') }}
+          restore-keys: |
+            hugo-${{ runner.os }}-${{ env.HUGO_VERSION }}-
+
+      - name: Install Dart Sass
+        run: sudo snap install dart-sass
+
+      - name: Verify site builds
+        env:
+          HUGO_CACHEDIR: ${{ runner.temp }}/hugo_cache
+        run: hugo --minify --baseURL "https://example.org/"
+
+  # ── 构建并部署 ────────────────────────────────────────────────
+  build:
+    name: Build
+    needs: quality
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install Hugo CLI
+        run: |
+          wget -O ${{ runner.temp }}/hugo.deb \
+            https://github.com/gohugoio/hugo/releases/download/v${HUGO_VERSION}/hugo_extended_${HUGO_VERSION}_linux-amd64.deb \
+          && sudo dpkg -i ${{ runner.temp }}/hugo.deb
+
+      - name: Install Dart Sass
+        run: sudo snap install dart-sass
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
       - name: Setup Pages
         id: pages
         uses: actions/configure-pages@v5
+
+      - name: Cache Hugo resources
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/hugo_cache
+          key: hugo-${{ runner.os }}-${{ env.HUGO_VERSION }}-${{ hashFiles('hugo.toml', 'config/**', 'data/**') }}
+          restore-keys: |
+            hugo-${{ runner.os }}-${{ env.HUGO_VERSION }}-
+
       - name: Install Node.js dependencies
         run: "[[ -f package-lock.json || -f npm-shrinkwrap.json ]] && npm ci || true"
+
       - name: Build with Hugo
         env:
           HUGO_CACHEDIR: ${{ runner.temp }}/hugo_cache
@@ -56,13 +113,16 @@ jobs:
           hugo \
             --minify \
             --baseURL "${{ steps.pages.outputs.base_url }}/"
+
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
           path: ./public
 
-  # Deployment job
+  # ── 部署（仅 main 分支推送时执行）──────────────────────────────
   deploy:
+    name: Deploy
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}

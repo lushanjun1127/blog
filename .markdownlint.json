@@ -1,0 +1,32 @@
+# markdownlint 配置
+# 参考：https://github.com/DavidAnson/markdownlint/blob/main/doc/Rules.md
+{
+  "default": true,
+
+  # MD013: 行长度限制 —— 中文写作不适用，关闭
+  "MD013": false,
+
+  # MD033: 允许内联 HTML —— Hugo 短代码和图片排版需要
+  "MD033": false,
+
+  # MD041: 首行必须是 H1 —— Hugo 文章标题来自 front matter，关闭
+  "MD041": false,
+
+  # MD034: 允许裸 URL —— 文档中常直接贴链接
+  "MD034": false,
+
+  # MD024: 允许同级重复标题 —— 不同章节下可能出现相同小标题
+  "MD024": {
+    "siblings_only": true
+  },
+
+  # MD007: 无序列表缩进 2 空格，匹配 prettier / editorconfig 习惯
+  "MD007": {
+    "indent": 2
+  },
+
+  # MD046: 统一使用围栏代码块
+  "MD046": {
+    "style": "fenced"
+  }
+}
