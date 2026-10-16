@@ -1,0 +1,4 @@
+# 随机封面图列表
+# 未在文章 front matter 指定 cover 时，从此列表中随机取一张
+# - https://example.com/cover-1.webp
+# - https://example.com/cover-2.webp

@@ -1,0 +1,7 @@
+# 友链列表
+# - name: 名称
+#   url: https://example.com/
+#   desc: 描述
+#   image: https://example.com/avatar.webp
+#   badge: 标签
+#   remark: 备注
